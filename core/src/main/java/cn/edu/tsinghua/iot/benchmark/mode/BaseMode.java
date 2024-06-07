@@ -70,10 +70,12 @@ public abstract class BaseMode {
 
   /** Start benchmark */
   public void run() {
+    // 调用子类的具体实现方法：清除数据、注册元数据。
     if (!preCheck()) {
       return;
     }
     for (int i = 0; i < config.getCLIENT_NUMBER(); i++) {
+      // 负责生成数据的写入和查询的客户端。
       DataClient client = DataClient.getInstance(i, dataDownLatch, dataBarrier);
       if (client == null) {
         return;
@@ -81,14 +83,16 @@ public abstract class BaseMode {
       dataClients.add(client);
     }
     for (DataClient client : dataClients) {
+      // 提交给线程池执行任务。
       executorService.submit(client);
     }
     setTimeLimitTask();
     setMiddleMeasureTask();
     startTime = System.nanoTime();
+    // 线程池不再接收新任务，所有任务执行完后关闭。
     executorService.shutdown();
     try {
-      // wait for all dataClients finish test
+      // 等待所有任务完成 wait for all dataClients finish test
       dataDownLatch.await();
     } catch (InterruptedException e) {
       LOGGER.error("Exception occurred during waiting for all threads finish.", e);

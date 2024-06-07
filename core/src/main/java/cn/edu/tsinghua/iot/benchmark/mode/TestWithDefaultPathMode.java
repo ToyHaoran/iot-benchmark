@@ -42,12 +42,15 @@ public class TestWithDefaultPathMode extends BaseMode {
     recorder.saveTestConfig();
     List<DBConfig> dbConfigs = new ArrayList<>();
     dbConfigs.add(config.getDbConfig());
+    // 是否双写数据库
     if (config.isIS_DOUBLE_WRITE()) {
       dbConfigs.add(config.getANOTHER_DBConfig());
     }
+    // 是否需要清除数据
     if (config.isIS_DELETE_DATA() && (!cleanUpData(dbConfigs))) {
       return false;
     }
+    // 是否注册元数据
     if (config.isCREATE_SCHEMA() && (!registerSchema())) {
       return false;
     }
@@ -57,11 +60,13 @@ public class TestWithDefaultPathMode extends BaseMode {
   @Override
   protected void postCheck() {
     List<Operation> operations;
+    // 是否进行两个数据库间点对点数据对比
     if (config.isIS_POINT_COMPARISON()) {
       operations = Collections.singletonList(Operation.DEVICE_QUERY);
     } else {
       operations = Operation.getNormalOperation();
     }
+    // 保存统计信息
     finalMeasure(
         baseModeMeasurement,
         dataClients.stream().map(DataClient::getMeasurement),

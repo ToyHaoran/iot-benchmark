@@ -411,6 +411,7 @@ public class IoTDB implements IDatabase {
   public Status preciseQuery(PreciseQuery preciseQuery) {
     String strTime = preciseQuery.getTimestamp() + "";
     String sql = getSimpleQuerySqlHead(preciseQuery.getDeviceSchema()) + " WHERE time = " + strTime;
+    // 如果子类覆写，则执行子类的该方法
     return executeQueryAndGetStatus(sql, Operation.PRECISE_QUERY);
   }
 

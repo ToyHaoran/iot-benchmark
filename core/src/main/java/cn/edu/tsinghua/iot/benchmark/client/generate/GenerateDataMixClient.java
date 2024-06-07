@@ -65,6 +65,7 @@ public class GenerateDataMixClient extends GenerateBaseClient {
         }
         try {
           switch (operation) {
+            // 11种查询
             case PRECISE_QUERY:
               dbWrapper.preciseQuery(queryWorkLoad.getPreciseQuery());
               break;

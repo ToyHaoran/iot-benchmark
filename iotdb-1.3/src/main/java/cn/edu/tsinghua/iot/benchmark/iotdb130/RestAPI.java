@@ -1,5 +1,6 @@
 package cn.edu.tsinghua.iot.benchmark.iotdb130;
 
+import cn.edu.tsinghua.iot.benchmark.client.operation.Operation;
 import cn.edu.tsinghua.iot.benchmark.conf.Config;
 import cn.edu.tsinghua.iot.benchmark.conf.ConfigDescriptor;
 import cn.edu.tsinghua.iot.benchmark.entity.Batch.IBatch;
@@ -125,9 +126,18 @@ public class RestAPI implements IDatabase {
     return new Gson().toJson(payload);
   }
 
+  /**
+   * Q1: PreciseQuery SQL: select {sensors} from {devices} where time = {time}
+   *
+   * @param preciseQuery universal precise query condition parameters
+   * @return
+   */
   @Override
   public Status preciseQuery(PreciseQuery preciseQuery) {
-    return null;
+    String strTime = preciseQuery.getTimestamp() + "";
+    String sql = getSimpleQuerySqlHead(preciseQuery.getDeviceSchema()) + " WHERE time = " + strTime;
+    return executeQueryAndGetStatus(sql);
+    // return executeQueryAndGetStatus(sql, Operation.PRECISE_QUERY);  // 可以优化一下
   }
 
   @Override
@@ -146,14 +156,42 @@ public class RestAPI implements IDatabase {
     return executeQueryAndGetStatus(sql);
   }
 
+  /**
+   * Q4: AggRangeQuery SQL: select {AggFun}({sensors}) from {devices} where time >= {startTime} and
+   * time <= {endTime}
+   *
+   * @param aggRangeQuery contains universal aggregation query with time filter parameters
+   * @return
+   */
   @Override
   public Status aggRangeQuery(AggRangeQuery aggRangeQuery) {
-    return null;
+    String aggQuerySqlHead =
+            getAggQuerySqlHead(aggRangeQuery.getDeviceSchema(), aggRangeQuery.getAggFun());
+    String sql =
+            addWhereTimeClause(
+                    aggQuerySqlHead, aggRangeQuery.getStartTimestamp(), aggRangeQuery.getEndTimestamp());
+    return executeQueryAndGetStatus(sql);
+    // return executeQueryAndGetStatus(sql, Operation.AGG_RANGE_QUERY);
   }
 
+  /**
+   * Q5: AggValueQuery SQL: select {AggFun}({sensors}) from {devices} where {sensors} > {value}
+   *
+   * @param aggValueQuery contains universal aggregation query with value filter parameters
+   * @return
+   */
   @Override
   public Status aggValueQuery(AggValueQuery aggValueQuery) {
-    return null;
+    String aggQuerySqlHead =
+            getAggQuerySqlHead(aggValueQuery.getDeviceSchema(), aggValueQuery.getAggFun());
+    String sql =
+            aggQuerySqlHead
+                    + " WHERE "
+                    + getValueFilterClause(
+                    aggValueQuery.getDeviceSchema(), (int) aggValueQuery.getValueThreshold())
+                    .substring(4);
+    return executeQueryAndGetStatus(sql);
+    // return executeQueryAndGetStatus(sql, Operation.AGG_VALUE_QUERY);
   }
 
   @Override
@@ -161,9 +199,25 @@ public class RestAPI implements IDatabase {
     return null;
   }
 
+  /**
+   * Q7: GroupByQuery SQL: select {AggFun}({sensors}) from {devices} group by ([{start}, {end}],
+   * {Granularity}ms)
+   *
+   * @param groupByQuery contains universal group by query condition parameters
+   * @return
+   */
   @Override
   public Status groupByQuery(GroupByQuery groupByQuery) {
-    return null;
+    String aggQuerySqlHead =
+            getAggQuerySqlHead(groupByQuery.getDeviceSchema(), groupByQuery.getAggFun());
+    String sql =
+            addGroupByClause(
+                    aggQuerySqlHead,
+                    groupByQuery.getStartTimestamp(),
+                    groupByQuery.getEndTimestamp(),
+                    groupByQuery.getGranularity());
+    return executeQueryAndGetStatus(sql);
+    // return executeQueryAndGetStatus(sql, Operation.GROUP_BY_QUERY);
   }
 
   @Override
@@ -177,9 +231,18 @@ public class RestAPI implements IDatabase {
     return null;
   }
 
+  /**
+   * Q10: ValueRangeQuery SQL: select {sensors} from {devices} where time >= {startTime} and time <=
+   * {endTime} and {sensors} > {value} order by time desc
+   *
+   * @param valueRangeQuery contains universal range query with value filter parameters
+   * @return
+   */
   @Override
   public Status valueRangeQueryOrderByDesc(ValueRangeQuery valueRangeQuery) {
-    return null;
+    String sql = getValueRangeQuerySql(valueRangeQuery) + " order by time desc";
+    return executeQueryAndGetStatus(sql);
+    // return executeQueryAndGetStatus(sql, Operation.VALUE_RANGE_QUERY_ORDER_BY_TIME_DESC);
   }
 
   private Status executeQueryAndGetStatus(String sql) {
@@ -199,6 +262,22 @@ public class RestAPI implements IDatabase {
 
   private String getRangeQuerySql(List<DeviceSchema> deviceSchemas, long start, long end) {
     return addWhereTimeClause(getSimpleQuerySqlHead(deviceSchemas), start, end);
+  }
+
+  private String getAggQuerySqlHead(List<DeviceSchema> devices, String aggFun) {
+    StringBuilder builder = new StringBuilder();
+    builder.append("SELECT ");
+    List<Sensor> querySensors = devices.get(0).getSensors();
+    builder.append(aggFun).append("(").append(querySensors.get(0).getName()).append(")");
+    for (int i = 1; i < querySensors.size(); i++) {
+      builder
+              .append(", ")
+              .append(aggFun)
+              .append("(")
+              .append(querySensors.get(i).getName())
+              .append(")");
+    }
+    return addFromClause(devices, builder);
   }
 
   private String getValueRangeQuerySql(ValueRangeQuery valueRangeQuery) {
@@ -244,6 +323,10 @@ public class RestAPI implements IDatabase {
     String startTime = start + "";
     String endTime = end + "";
     return prefix + " WHERE time >= " + startTime + " AND time <= " + endTime;
+  }
+
+  private String addGroupByClause(String prefix, long start, long end, long granularity) {
+    return prefix + " group by ([" + start + "," + end + ")," + granularity + "ms) ";
   }
 
   protected String getSimpleQuerySqlHead(List<DeviceSchema> devices) {
